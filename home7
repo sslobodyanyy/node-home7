@@ -1,0 +1,167 @@
+// встановити PM2
+//
+// оптимізнути свою апку за допомогою нових мідлвар
+// імплементувати токенти у вашу апку                       //ok
+//
+// додати:
+//     .env - не пушимо (перед створенням додайте його в .gitignore)
+// .env-example
+// зробити закриті ендпоінти,                               //ok
+//
+// тепер редагувати дані користувача                        //ok
+// може лише цей конкретний користувач.
+//
+// Видалити акаунт
+// може власник акаунту, або admin
+//
+// * спробуйте реалізувати refresh                          // ok
+//
+// в кого відсутня друга сутність обов'язково доробити
+
+const express = require('express');
+
+const mongoose = require('mongoose');
+require('dotenv').config();
+const { variables: { PORT, MONGO_CONNECT } } = require('./config');
+const { userRouter, authRouter, carRouter } = require('./routes');
+const {
+    ErrorStatus: { NOT_FOUND, SERVER_ERROR },
+    ErrorMessages: { ENTITY_NOT_FOUND }
+} = require('./errors');
+const app = express();
+mongoose.connect(MONGO_CONNECT);
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use('/auth', authRouter);
+app.use('/cars', carRouter);
+app.use('/users', userRouter);
+app.use('*', _notFoundError);
+app.use(_mainErrorHandler);
+app.listen(PORT, (err) => {
+    if (!err) {
+        console.log(`App Listen ${PORT}`);
+    }
+});
+function _notFoundError(req, res, next) {
+    next({
+        status: NOT_FOUND,
+        message: ENTITY_NOT_FOUND
+    });
+}
+// eslint-disable-next-line no-unused-vars
+function _mainErrorHandler(err, req, res, next) {
+    res
+        .status(err.status || SERVER_ERROR)
+        .json({
+            message: err.message
+        });
+}
+
+================================
+Node/Node/config/variables.js
+==================================
+
+module.exports = {
+    PORT: process.env.PORT || 5050,
+
+    MONGO_CONNECT: process.env.MONGO_CONNECT || 'mongodb://localhost:27017/apr-2021',
+
+    CURRENT_YEAR: new Date().getFullYear()
+    CURRENT_YEAR: new Date().getFullYear(),
+
+    ACCESS_SECRET_KEY: process.env.ACCESS_SECRET_KEY || 'SecretAccess',
+
+
+===================================
+Node/Node/constants/index.js
+===================================
+module.exports = {
+    userRoleEnum: require('./user.role.enum'),
+    regexpEnum: require('./regesp.enum'),
+    userRoleEnum: require('./user.role.enum'),
+    variables: require('./variables.name.constants')
+};
+======================================
+Node/Node/constants/variables.name.constants.js 
+=====================================
+module.exports = {
+    CAR: 'car',
+    USER: 'user',
+    EMAIL: 'email',
+    USER_ID: 'user_id',
+    CAR_ID: 'car_id',
+    PARAMS: 'params',
+    ID: '_id',
+    PASSWORD: 'password',
+    V: '__v'
+    V: '__v',
+    AUTHORIZATION: 'Authorization',
+    OAUTH: 'oauth',
+    ACCESS_TOKEN: 'access_token',
+    REFRESH_TOKEN: 'refresh_token'
+};
+
+    REFRESH_SECRET_KEY: process.env.REFRESH_SECRET_KEY || 'SecretRefresh'
+};
+
+========================================
+ Node/Node/controllers/auth.controller.js 
+========================================
+const { passwordService } = require('../services');
+const { variables: { AUTHORIZATION } } = require('../constants');
+const { oauthModel } = require('../database');
+const { passwordService: { compare }, jvtService } = require('../services');
+const { userNormalization: { userNormalization } } = require('../utils');
+
+module.exports = {
+    login: async (req, res, next) => {
+    loginUser: async (req, res, next) => {
+        try {
+            const { body: { password }, user } = req;
+
+            await passwordService.compare(user.password, password);
+            await compare(user.password, password);
+
+            res.redirect('/users');
+            const tokenPair = jvtService.generateTokenPair();
+
+            await oauthModel.create({ ...tokenPair, user: user._id });
+
+            res.json({
+                ...tokenPair,
+                user: userNormalization(user)
+            });
+        } catch (e) {
+            next(e);
+        }
+    },
+
+    logoutUser: async (req, res, next) => {
+        try {
+            const access_token = req.get(AUTHORIZATION);
+
+            await oauthModel.deleteOne({ access_token });
+
+            res.json('logout ok');
+        } catch (e) {
+            next(e);
+        }
+    },
+
+    refresh: async (req, res, next) => {
+        try {
+            const refresh_token = req.get(AUTHORIZATION);
+            const user = req.loginUser;
+
+            const tokenPair = jvtService.generateTokenPair();
+            await oauthModel.updateOne({ refresh_token }, tokenPair);
+
+            res.json({
+                ...tokenPair,
+                user: userNormalization(user)
+            });
+        } catch (e) {
+            next(e);
+        }
+    }
+};
